@@ -1,11 +1,8 @@
 """
 Fetch available Turf Nation football slots for the next N weeks and export to CSV.
 
-API quirk:
-  - Request `date` must be midnight BDT expressed as UTC (e.g. 2026-08-12 00:00 BDT
-    -> 2026-08-11T18:00:00.000Z).
-  - Response times use a dummy date (1970-01-01); only the clock portion is meaningful.
-    Those UTC clock values are converted to BDT for the CSV.
+GET https://turfnationbd.com/api/turfnation/slots?fieldId=<id>&date=YYYY-MM-DD
+Times from the API are treated as Asia/Dhaka (BDT). Only available slots are stored.
 """
 
 from __future__ import annotations
@@ -13,29 +10,33 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import requests
 
-SLOTS_URL = "https://admin.turfnationbd.com/api/appointments/available-slots"
-PRICING_URL = "https://admin.turfnationbd.com/api/arenas/{arena_id}/pricing"
+SLOTS_URL = "https://turfnationbd.com/api/turfnation/slots"
 BDT = ZoneInfo("Asia/Dhaka")
-UTC = timezone.utc
 
-ARENAS = {
-    "67619460992c39b4c6675735": "Turf A (5-A side)",
-    "6761946a992c39b4c667573a": "Turf B (6-A side)",
+FIELDS = {
+    "187fe9ea-426a-49b4-a44b-d7e65d25b44e": "Turfnation A (5-a side)",
+    "3a42c6bf-e3d2-4dab-93d7-d7f7ad8c6566": "Turfnation B (6-a side)",
 }
 
 CSV_FIELDS = ["date", "weekday", "time", "arena", "price"]
 
+# Match slot start times (BDT). Empty list = keep every available slot.
+# Examples: ["8:30 PM"], ["8.30 PM", "10:00 PM"], ["20:30"]
+FILTERS: dict[str, list[str]] = {
+    "start_times": ["8.30 PM"],
+}
+
 HEADERS = {
-    "accept": "application/json, text/plain, */*",
-    "content-type": "application/json",
-    "origin": "https://www.turfnationbd.com",
-    "referer": "https://www.turfnationbd.com/",
+    "accept": "*/*",
+    "accept-language": "en-US,en;q=0.9",
+    "origin": "https://turfnationbd.com",
+    "referer": "https://turfnationbd.com/booking",
     "user-agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -44,16 +45,28 @@ HEADERS = {
 }
 
 
-def bdt_midnight_as_utc_iso(day: date) -> str:
-    """Midnight BDT for `day`, serialized as UTC ISO (…T18:00:00.000Z previous calendar day)."""
-    midnight_bdt = datetime.combine(day, time.min, tzinfo=BDT)
-    return midnight_bdt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+def parse_hhmm(value: str) -> time:
+    hour, minute = value.split(":")
+    return time(int(hour), int(minute), tzinfo=BDT)
 
 
-def slot_utc_to_bdt_time(slot_iso: str) -> time:
-    """Take time-of-day from API (dummy 1970-01-01 UTC) and return BDT clock time."""
-    slot_utc = datetime.fromisoformat(slot_iso.replace("Z", "+00:00"))
-    return slot_utc.astimezone(BDT).time()
+def parse_filter_time(value: str) -> time:
+    """Parse '8:30 PM', '8.30 PM', or '20:30' into a BDT clock time."""
+    raw = value.strip().upper().replace(".", ":")
+    for fmt in ("%I:%M %p", "%H:%M"):
+        try:
+            parsed = datetime.strptime(raw, fmt).time()
+            return time(parsed.hour, parsed.minute, tzinfo=BDT)
+        except ValueError:
+            continue
+    raise ValueError(f"Unrecognized filter time: {value!r}")
+
+
+def allowed_start_times() -> set[time] | None:
+    values = FILTERS.get("start_times") or []
+    if not values:
+        return None
+    return {parse_filter_time(item) for item in values}
 
 
 def format_time_ampm(t: time) -> str:
@@ -61,39 +74,21 @@ def format_time_ampm(t: time) -> str:
     return t.strftime("%I:%M %p").lstrip("0")
 
 
-def fetch_slots(session: requests.Session, arena_id: str, day: date, duration: int) -> list[str]:
-    payload = {
-        "arenaId": arena_id,
-        "date": bdt_midnight_as_utc_iso(day),
-        "duration": duration,
-    }
-    response = session.post(SLOTS_URL, headers=HEADERS, json=payload, timeout=30)
+def fetch_slots(session: requests.Session, field_id: str, day: date) -> list[dict]:
+    response = session.get(
+        SLOTS_URL,
+        headers=HEADERS,
+        params={"fieldId": field_id, "date": day.isoformat()},
+        timeout=30,
+    )
     response.raise_for_status()
-    data = response.json()
+    payload = response.json()
+    if not isinstance(payload, dict) or "data" not in payload:
+        raise ValueError(f"Unexpected slots response for {field_id} on {day}: {payload!r}")
+    data = payload["data"]
     if not isinstance(data, list):
-        raise ValueError(f"Unexpected slots response for {arena_id} on {day}: {data!r}")
+        raise ValueError(f"Unexpected slots data for {field_id} on {day}: {data!r}")
     return data
-
-
-def fetch_price(
-    session: requests.Session,
-    arena_id: str,
-    day: date,
-    start_time_iso: str,
-    duration: int,
-) -> int | str:
-    payload = {
-        "duration": duration,
-        "date": bdt_midnight_as_utc_iso(day),
-        "startTime": start_time_iso,
-    }
-    url = PRICING_URL.format(arena_id=arena_id)
-    response = session.post(url, headers=HEADERS, json=payload, timeout=30)
-    response.raise_for_status()
-    data = response.json()
-    if not isinstance(data, dict) or "price" not in data:
-        raise ValueError(f"Unexpected pricing response for {arena_id} on {day}: {data!r}")
-    return data["price"]
 
 
 def daterange(start: date, days: int):
@@ -101,47 +96,57 @@ def daterange(start: date, days: int):
         yield start + timedelta(days=offset)
 
 
+def print_progress(current: int, total: int, day: date, width: int = 32) -> None:
+    filled = int(width * current / total) if total else width
+    bar = "#" * filled + "-" * (width - filled)
+    pct = int(100 * current / total) if total else 100
+    label = f"{day.isoformat()} {day.strftime('%a')}"
+    print(f"\r{label}  [{bar}] {current}/{total} ({pct}%)", end="", flush=True)
+
+
 def export_slots(
-    weeks: int = 3,
-    duration: int = 90,
+    weeks: int = 12,
     output: Path | None = None,
     start: date | None = None,
 ) -> Path:
     start_day = start or datetime.now(BDT).date()
     total_days = weeks * 7
-    out_path = output or Path(f"available_slots_{start_day.isoformat()}_{weeks}w.csv")
+    out_path = output or Path(f"available_slots_{weeks}w.csv")
+    wanted_times = allowed_start_times()
 
     rows: list[dict[str, str]] = []
     errors: list[str] = []
 
     with requests.Session() as session:
-        for day in daterange(start_day, total_days):
-            weekday = day.strftime("%a")  # Mon, Tue, Sat, ...
-            for arena_id, arena_name in ARENAS.items():
+        for index, day in enumerate(daterange(start_day, total_days), start=1):
+            print_progress(index, total_days, day)
+            weekday = day.strftime("%a")
+            for field_id, field_name in FIELDS.items():
                 try:
-                    slots = fetch_slots(session, arena_id, day, duration)
+                    slots = fetch_slots(session, field_id, day)
                 except (requests.RequestException, ValueError) as exc:
-                    errors.append(f"{day} | {arena_name} | slots: {exc}")
+                    errors.append(f"{day} | {field_name} | slots: {exc}")
                     continue
 
-                for slot_iso in slots:
-                    local_time = slot_utc_to_bdt_time(slot_iso)
-                    try:
-                        price = fetch_price(session, arena_id, day, slot_iso, duration)
-                    except (requests.RequestException, ValueError) as exc:
-                        errors.append(f"{day} {format_time_ampm(local_time)} | {arena_name} | price: {exc}")
-                        price = ""
+                for slot in slots:
+                    if not slot.get("available"):
+                        continue
 
+                    start_local = parse_hhmm(slot["startTime"])
+                    if wanted_times is not None and start_local not in wanted_times:
+                        continue
                     rows.append(
                         {
                             "date": day.isoformat(),
                             "weekday": weekday,
-                            "time": format_time_ampm(local_time),
-                            "arena": arena_name,
-                            "price": str(price),
-                            "_sort_time": local_time.strftime("%H:%M"),
+                            "time": format_time_ampm(start_local),
+                            "arena": field_name,
+                            "price": str(slot.get("price", "")),
+                            "_sort_time": start_local.strftime("%H:%M"),
                         }
                     )
+
+    print()
 
     rows.sort(key=lambda r: (r["date"], r["_sort_time"], r["arena"]))
     for row in rows:
@@ -167,26 +172,12 @@ def parse_args() -> argparse.Namespace:
         "-w",
         "--weeks",
         type=int,
-        default=3,
-        help="How many next weeks to check (default: 3)",
-    )
-    parser.add_argument("--duration", type=int, default=90, help="Slot duration minutes (default: 90)")
-    parser.add_argument(
-        "--start",
-        type=date.fromisoformat,
-        default=None,
-        help="Start date YYYY-MM-DD in BDT (default: today in BDT)",
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        type=Path,
-        default=None,
-        help="Output CSV path (default: available_slots_<start>_<weeks>w.csv)",
+        default=12,
+        help="How many next weeks to check (default: 12)",
     )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    export_slots(weeks=args.weeks, duration=args.duration, output=args.output, start=args.start)
+    export_slots(weeks=args.weeks)
