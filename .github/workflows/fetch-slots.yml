@@ -25,7 +25,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Fetch slots
-        run: python fetch_slots.py -w 12
+        run: python fetch_slots.py -w 16
 
       - name: Commit CSV if changed
         run: |
