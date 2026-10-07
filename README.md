@@ -4,10 +4,10 @@ Available football slots in Dhaka, refreshed every night at **00:00 BDT**.
 
 ## Live CSV
 
-[available_slots_12w.csv](https://raw.githubusercontent.com/wazedrifat/Turnation-Automation/master/available_slots_12w.csv)
+[available_slots.csv](https://raw.githubusercontent.com/wazedrifat/Turnation-Automation/master/available_slots.csv)
 
 ```
-https://raw.githubusercontent.com/wazedrifat/Turnation-Automation/master/available_slots_12w.csv
+https://raw.githubusercontent.com/wazedrifat/Turnation-Automation/master/available_slots.csv
 ```
 
 ## Drop it into Google Sheets
@@ -15,7 +15,7 @@ https://raw.githubusercontent.com/wazedrifat/Turnation-Automation/master/availab
 Paste this in `A1`:
 
 ```excel
-=IMPORTDATA("https://raw.githubusercontent.com/wazedrifat/Turnation-Automation/master/available_slots_12w.csv")
+=IMPORTDATA("https://raw.githubusercontent.com/wazedrifat/Turnation-Automation/master/available_slots.csv")
 ```
 
 Sheets may cache the file for up to about an hour. Use a Filter view (or a second sheet) if you want to sort — don’t edit the `IMPORTDATA` cells.

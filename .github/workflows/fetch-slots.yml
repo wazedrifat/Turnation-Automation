@@ -31,7 +31,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add available_slots_12w.csv
+          git add available_slots.csv
           if git diff --staged --quiet; then
             echo "No slot changes"
           else

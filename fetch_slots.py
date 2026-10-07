@@ -111,7 +111,7 @@ def export_slots(
 ) -> Path:
     start_day = start or datetime.now(BDT).date()
     total_days = weeks * 7
-    out_path = output or Path(f"available_slots_{weeks}w.csv")
+    out_path = output or Path(f"available_slots.csv")
     wanted_times = allowed_start_times()
 
     rows: list[dict[str, str]] = []
