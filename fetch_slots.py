@@ -29,7 +29,7 @@ CSV_FIELDS = ["date", "weekday", "time", "arena", "price"]
 # Match slot start times (BDT). Empty list = keep every available slot.
 # Examples: ["8:30 PM"], ["8.30 PM", "10:00 PM"], ["20:30"]
 FILTERS: dict[str, list[str]] = {
-    "start_times": ["8.30 PM"],
+    "start_times": ["7.00 PM", "8.30 PM"],
 }
 
 HEADERS = {

@@ -35,6 +35,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No slot changes"
           else
-            git commit -m "Update available slots CSV"
+            git commit -m "Update available slots CSV at $(TZ='Asia/Dhaka' date '+%d-%b-%y' | tr '[:upper:]' '[:lower:]')"
             git push
           fi
