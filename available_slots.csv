@@ -1,13 +1,9 @@
 date,weekday,time,arena,price
-2026-11-22,Sun,8:30 PM,Turfnation B (6-a side),5000
 2026-12-05,Sat,7:00 PM,Turfnation A (5-a side),4500
-2026-12-07,Mon,8:30 PM,Turfnation A (5-a side),4500
 2026-12-16,Wed,7:00 PM,Turfnation A (5-a side),4500
 2026-12-16,Wed,7:00 PM,Turfnation B (6-a side),5000
-2026-12-19,Sat,7:00 PM,Turfnation A (5-a side),4500
 2026-12-21,Mon,8:30 PM,Turfnation A (5-a side),4500
 2026-12-25,Fri,7:00 PM,Turfnation A (5-a side),4500
-2026-12-26,Sat,7:00 PM,Turfnation A (5-a side),4500
 2026-12-27,Sun,8:30 PM,Turfnation A (5-a side),4500
 2026-12-28,Mon,8:30 PM,Turfnation A (5-a side),4500
 2027-01-01,Fri,7:00 PM,Turfnation A (5-a side),4500
@@ -175,3 +171,7 @@ date,weekday,time,arena,price
 2027-03-12,Fri,7:00 PM,Turfnation B (6-a side),5000
 2027-03-12,Fri,8:30 PM,Turfnation A (5-a side),4500
 2027-03-12,Fri,8:30 PM,Turfnation B (6-a side),5000
+2027-03-13,Sat,7:00 PM,Turfnation A (5-a side),4500
+2027-03-13,Sat,7:00 PM,Turfnation B (6-a side),5000
+2027-03-13,Sat,8:30 PM,Turfnation A (5-a side),4500
+2027-03-13,Sat,8:30 PM,Turfnation B (6-a side),5000
